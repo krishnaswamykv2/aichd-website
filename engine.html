@@ -74,6 +74,20 @@ svg text{font-family:var(--font)}
 .foot{margin-top:26px;font-size:12px;color:var(--dim)}
 .err{color:var(--red)}
 body.embedded h1,body.embedded .lead{display:none}
+.live{margin-top:18px}
+.lhd{display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;align-items:flex-end;margin-bottom:14px}
+.lhd b{font-size:clamp(18px,2.2vw,22px);letter-spacing:-.02em}
+.ctrls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.seg.seg3{grid-template-columns:repeat(3,auto);display:inline-grid}
+.seg.seg3 button{padding:8px 14px}
+.btn.sm{width:auto;margin:0;padding:10px 18px;font-size:15px}
+.pair.one{grid-template-columns:1fr}
+.lstat{display:flex;justify-content:space-between;gap:10px;padding:10px 16px;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.lstat b{color:var(--ink);font-weight:600}
+.lstat .fps{color:var(--blue);font-weight:700}
+.livebadge{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--red);margin-right:6px;animation:pulse 1.2s infinite}
+@keyframes pulse{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.livebadge{animation:none}}
 body.embedded .wrap{padding-top:16px}
 details summary{cursor:pointer;color:var(--blue);font-size:14px}
 </style>
@@ -111,6 +125,29 @@ details summary{cursor:pointer;color:var(--blue);font-size:14px}
     </div>
   </div>
 
+  <section class="panel live" id="livepanel" aria-label="Live camera">
+    <div class="lhd">
+      <div><div class="k" id="lk">Live camera</div><b>Both models on your camera feed, in real time.</b></div>
+      <div class="ctrls">
+        <div class="seg seg3" id="lview" role="group" aria-label="Live view">
+          <button type="button" data-v="both" class="on">Side by side</button>
+          <button type="button" data-v="fp32">FP32 only</button>
+          <button type="button" data-v="int8">INT8 only</button>
+        </div>
+        <button class="btn ghost sm" id="lflip" type="button" hidden>Flip camera</button>
+        <button class="btn primary sm" id="lstart" type="button" disabled>Start live camera</button>
+      </div>
+    </div>
+    <div class="pair" id="lpair">
+      <div class="view" id="lv32"><div class="hd"><b><i class="tag" style="background:#8e8e93"></i>FP32 · 32-bit</b><span id="lo32">–</span></div><canvas id="lc32" width="640" height="360"></canvas>
+        <div class="lstat"><span>median <b id="lm32">–</b></span><span>model speed <span class="fps" id="lf32">–</span></span></div></div>
+      <div class="view" id="lv8"><div class="hd"><b><i class="tag" style="background:#2997ff"></i>INT8 · 8-bit</b><span id="lo8">–</span></div><canvas id="lc8" width="640" height="360"></canvas>
+        <div class="lstat"><span>median <b id="lm8">–</b></span><span>model speed <span class="fps" id="lf8">–</span></span></div></div>
+    </div>
+    <div class="status" id="lstatus">Uses the input size selected above. Side by side runs both models on every frame; pick one model to see its full speed.</div>
+    <video id="lvid" playsinline muted hidden></video>
+  </section>
+
   <div class="foot" id="foot"></div>
 </div>
 
@@ -136,7 +173,8 @@ const prog = f => { $('prog').style.width = Math.round(f * 100) + '%'; };
 /* ---------------- UI: sizes, examples, upload, camera ---------------- */
 $('sizes').innerHTML = SIZES.map(s => `<button type="button" data-s="${s}" class="${s===size?'on':''}">${s}</button>`).join('');
 $('sizes').onclick = e => { const b = e.target.closest('button'); if(!b) return;
-  size = +b.dataset.s; [...$('sizes').children].forEach(x => x.classList.toggle('on', +x.dataset.s === size)); };
+  size = +b.dataset.s; [...$('sizes').children].forEach(x => x.classList.toggle('on', +x.dataset.s === size));
+  if (typeof live !== 'undefined' && live.on) setLiveView(live.view); };
 
 function setImage(src){
   const im = new Image(); im.crossOrigin = 'anonymous';
@@ -169,7 +207,10 @@ $('cam').onclick = async () => {
     v.style.display = 'none'; $('cam').textContent = 'Use camera snapshot'; setImage(c.toDataURL('image/jpeg', 0.92));
   }
 };
-function updateButtons(){ $('run').disabled = $('explore').disabled = !(img && runtimeReady) || busy; }
+function updateButtons(){
+  $('run').disabled = $('explore').disabled = !(img && runtimeReady) || busy || live.on;
+  $('lstart').disabled = !runtimeReady || (busy && !live.on);
+}
 
 /* ---------------- runtime + models ---------------- */
 async function fetchWithProgress(url, label){
@@ -193,11 +234,13 @@ async function getModel(prec, s){
 }
 
 /* ---------------- pre / post processing (same as the project's Python wrapper) ---------------- */
+const dimsOf = im => [im.naturalWidth || im.videoWidth || im.width, im.naturalHeight || im.videoHeight || im.height];
 function letterbox(image, s){
+  const [IW, IH] = dimsOf(image);
   const c = document.createElement('canvas'); c.width = c.height = s;
   const g = c.getContext('2d', {willReadFrequently: true}); g.fillStyle = 'rgb(114,114,114)'; g.fillRect(0, 0, s, s);
-  const r = Math.min(s / image.naturalHeight, s / image.naturalWidth);
-  const nw = Math.round(image.naturalWidth * r), nh = Math.round(image.naturalHeight * r);
+  const r = Math.min(s / IH, s / IW);
+  const nw = Math.round(IW * r), nh = Math.round(IH * r);
   const dx = Math.floor((s - nw) / 2), dy = Math.floor((s - nh) / 2);
   g.drawImage(image, dx, dy, nw, nh);
   const d = g.getImageData(0, 0, s, s).data, x = new Float32Array(s * s * 3);
@@ -252,7 +295,7 @@ function match(ref, other){
   return {n: ious.length, miou: ious.length ? ious.reduce((a, b) => a + b) / ious.length : 0};
 }
 function draw(canvas, image, boxes, color){
-  const W = image.naturalWidth, H = image.naturalHeight; canvas.width = W; canvas.height = H;
+  const [W, H] = dimsOf(image); if (canvas.width !== W) canvas.width = W; if (canvas.height !== H) canvas.height = H;
   const g = canvas.getContext('2d'); g.drawImage(image, 0, 0);
   const lw = Math.max(2, Math.round(Math.min(W, H) / 280)), fs = Math.max(12, Math.round(Math.min(W, H) / 38));
   g.lineWidth = lw; g.font = `600 ${fs}px Inter, sans-serif`;
@@ -347,6 +390,77 @@ function chart(rows){
 $('run').onclick = compare; $('explore').onclick = explore;
 
 $('foot').innerHTML = `AICHD · Chennai Institute of Technology. Models: YOLOv8n (Ultralytics, AGPL-3.0) exported to TFLite; INT8 by post-training full-integer quantization. Runtime: LiteRT.js (Google, Apache-2.0) on WebAssembly. Example images: COCO dataset (Lin et al., 2014). Timings depend on your device and browser; the project report's controlled measurements are on the main page.`;
+
+
+/* ---------------- live camera ---------------- */
+const live = {on: false, stream: null, facing: 'user', view: 'both', hist: {fp32: [], int8: []}, frames: 0, t0: 0, loading: false};
+const median = a => { const b = [...a].sort((x, y) => x - y); return b[Math.floor(b.length / 2)]; };
+const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
+const lstatus = t => { $('lstatus').innerHTML = t; };
+function setLiveView(v){
+  live.view = v; [...$('lview').children].forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  $('lv32').style.display = v === 'int8' ? 'none' : ''; $('lv8').style.display = v === 'fp32' ? 'none' : '';
+  $('lpair').classList.toggle('one', v !== 'both');
+  live.hist = {fp32: [], int8: []}; live.frames = 0; live.t0 = performance.now();
+}
+$('lview').onclick = e => { const b = e.target.closest('button'); if (b) setLiveView(b.dataset.v); };
+
+async function startLive(){
+  if (live.on) { stopLive(); return; }
+  try {
+    live.stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: live.facing, width: {ideal: 640}, height: {ideal: 480}}, audio: false});
+  } catch (e) { lstatus('<span class="err">Camera not available or permission denied. Allow camera access in the browser, or use photo mode above.</span>'); return; }
+  const v = $('lvid'); v.srcObject = live.stream; await v.play();
+  try { const cams = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput'); $('lflip').hidden = cams.length < 2; } catch (e) {}
+  live.on = true; $('lstart').textContent = 'Stop live camera'; $('lstart').classList.replace('primary', 'ghost');
+  $('lk').innerHTML = '<i class="livebadge"></i>Live camera'; updateButtons(); setLiveView(live.view);
+  requestAnimationFrame(liveLoop);
+}
+function stopLive(){
+  live.on = false; if (live.stream) live.stream.getTracks().forEach(t => t.stop()); live.stream = null;
+  $('lstart').textContent = 'Start live camera'; $('lstart').classList.replace('ghost', 'primary');
+  $('lk').textContent = 'Live camera'; updateButtons();
+  const fp = live.hist.fp32.length ? `FP32 median ${median(live.hist.fp32).toFixed(1)} ms` : '', i8 = live.hist.int8.length ? `INT8 median ${median(live.hist.int8).toFixed(1)} ms` : '';
+  lstatus(fp || i8 ? `Stopped. Last session: ${[fp, i8].filter(Boolean).join(', ')}.` : 'Stopped.');
+}
+$('lstart').onclick = startLive;
+$('lflip').onclick = async () => { live.facing = live.facing === 'user' ? 'environment' : 'user'; if (live.on) { stopLive(); await startLive(); } };
+document.addEventListener('visibilitychange', () => { if (document.hidden && live.on) stopLive(); });
+
+const frameCanvas = document.createElement('canvas');
+async function liveLoop(){
+  if (!live.on) return;
+  const v = $('lvid');
+  if (!v.videoWidth) { requestAnimationFrame(liveLoop); return; }
+  const s = size, precs = live.view === 'both' ? ['fp32', 'int8'] : [live.view];
+  try {
+    for (const p of precs) if (!cache[p + s]) { live.loading = true; lstatus('Loading ' + p.toUpperCase() + ' model…'); await getModel(p, s); prog(0); }
+    live.loading = false;
+    frameCanvas.width = v.videoWidth; frameCanvas.height = v.videoHeight;
+    frameCanvas.getContext('2d').drawImage(v, 0, 0);
+    const lb = letterbox(frameCanvas, s), [W, H] = dimsOf(frameCanvas);
+    for (const p of precs) {
+      const r = await runModel(cache[p + s].model, lb.x, s), boxes = decode(r.arr, s, lb, W, H);
+      const h = live.hist[p]; h.push(r.ms); if (h.length > 30) h.shift();
+      const sfx = p === 'fp32' ? '32' : '8';
+      draw($('lc' + sfx), frameCanvas, boxes, COL[p]);
+      $('lo' + sfx).textContent = `${r.ms.toFixed(1)} ms · ${boxes.length} object${boxes.length === 1 ? '' : 's'}`;
+      $('lm' + sfx).textContent = median(h).toFixed(1) + ' ms';
+      $('lf' + sfx).textContent = (1000 / mean(h)).toFixed(1) + ' FPS';
+    }
+    live.frames++;
+    const secs = (performance.now() - live.t0) / 1000;
+    if (live.frames % 5 === 0) {
+      let msg = `Live at ${s}×${s} · display ${(live.frames / secs).toFixed(1)} frames per second · ${deviceText()}.`;
+      if (live.view === 'both' && live.hist.fp32.length > 5 && live.hist.int8.length > 5) {
+        const sp = median(live.hist.fp32) / median(live.hist.int8);
+        msg = `INT8 is running <b>${sp >= 1 ? sp.toFixed(2) + '× faster' : (1 / sp).toFixed(2) + '× slower'}</b> than FP32 on your camera feed. ` + msg;
+      }
+      lstatus(msg);
+    }
+  } catch (e) { console.error(e); lstatus('<span class="err">Live mode stopped: ' + e.message + '</span>'); stopLive(); return; }
+  requestAnimationFrame(liveLoop);
+}
 
 /* ---------------- tell an embedding page our height ---------------- */
 if (window.parent !== window) {

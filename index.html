@@ -171,7 +171,7 @@ footer{padding:40px 0 56px;border-top:1px solid var(--line);font-size:14px;color
     <h2>System</h2>
     <p class="prose muted">Training and conversion run offline. Inference, fusion and benchmarking run on the edge board. A microcontroller handles sensors and actuation.</p>
     <div class="three" style="margin-top:22px">
-      <div class="block"><div class="where">Offline (Colab)</div><h3>Train and optimize</h3><p>Gas MLP trained on the UCI Gas Sensor Array Drift dataset. Both models converted to TFLite FP32 and full-integer INT8 with a representative calibration set.</p></div>
+      <div class="block"><div class="where">Offline (laptop)</div><h3>Train and optimize</h3><p>Gas MLP trained on the UCI Gas Sensor Array Drift Dataset at Different Concentrations. Both models converted to TFLite FP32 and full-integer INT8 with a representative calibration set.</p></div>
       <div class="block"><div class="where">Raspberry Pi 4B</div><h3>Infer, fuse, measure</h3><p>Camera thread keeps only the newest frame. YOLOv8n INT8 detects people, the gas MLP classifies hazard level, and a fusion rule sets the safety state.</p></div>
       <div class="block"><div class="where">Arduino Uno</div><h3>Sense and act</h3><p>Reads MQ-2 and DHT-11, streams readings over serial, and drives LEDs, buzzer and relay from the SAFE, WARNING or ALARM command.</p></div>
     </div>
@@ -203,7 +203,7 @@ footer{padding:40px 0 56px;border-top:1px solid var(--line);font-size:14px;color
 <section>
   <div class="wrap">
     <h2>Results: gas-hazard classifier</h2>
-    <p class="prose muted">The UCI dataset labels six gases. We derive SAFE, WARNING and CRITICAL from per-gas concentration tertiles fitted on the training split only, and report both a random split and a drift-aware split that tests on later sensor batches.</p>
+    <p class="prose muted">The UCI dataset (Fonollosa et al., 2015) labels six gases at known concentrations. We derive SAFE, WARNING and CRITICAL from per-gas concentration tertiles fitted on the training split only, and report both a random split and a drift-aware split that tests on later sensor batches.</p>
     <div id="gas-out" style="margin-top:22px"></div>
   </div>
 </section>
@@ -243,7 +243,7 @@ footer{padding:40px 0 56px;border-top:1px solid var(--line);font-size:14px;color
   <div class="wrap prose">
     <h2>How to read these results</h2>
     <p><b>Latency is model-only time.</b> Image resizing, post-processing, camera capture and serial transfer are logged separately and never added to the model figure.</p>
-    <p><b>The device matters.</b> INT8 gives a large speed-up on ARM cores. On x86 cloud CPUs the gain can be small, so every result on this page names the processor it was measured on.</p>
+    <p><b>The device matters.</b> INT8 gives a large speed-up on ARM cores. On x86 desktop and laptop CPUs the gain can be small, so every result on this page names the processor it was measured on.</p>
     <p><b>Detection quality</b> is reported as agreement with the FP32 model on the same frames, because no labelled evaluation set is used for the person class.</p>
     <p><b>The gas model's demo input</b> is replayed held-out UCI vectors, because a single MQ-2 cannot produce the dataset's 128 features. Live MQ-2 and DHT-11 readings are logged as the start of a calibration dataset.</p>
   </div>

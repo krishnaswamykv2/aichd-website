@@ -144,7 +144,7 @@ footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px}
 
 <nav aria-label="Sections"><div class="wrap">
   <a class="brand" href="#top">AICHD</a>
-  <div class="links"><a href="#results">Results</a><a href="#resolution">Exploration</a><a href="#silicon">Silicon</a><a href="#live">Live</a><a href="#system">System</a></div>
+  <div class="links"><a href="#results">Results</a><a href="#resolution">Exploration</a><a href="#silicon">Silicon</a><a href="#live">Live</a><a href="#engine" id="nav-engine" style="display:none">Engine</a><a href="#system">System</a></div>
 </div></nav>
 
 <header class="hero" id="top">
@@ -260,6 +260,18 @@ footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px}
   </div>
 </section>
 
+
+<section id="engine" style="background:var(--bg2);display:none">
+  <div class="wrap c">
+    <h2 class="h2 reveal">Try it on your own image.</h2>
+    <p class="lead reveal">Upload a photo and both models run on it right now, on your own device: the original 32-bit detector and our 8-bit one, side by side. Your laptop or phone becomes the edge device.</p>
+  </div>
+  <div class="frame">
+    <iframe id="engine-frame" title="AICHD Optimization Engine" loading="lazy" allow="camera"
+      style="width:100%;height:820px;border:0;border-radius:18px;background:#000;display:block"></iframe>
+    <div class="cap tiny c">Runs on your own device with LiteRT.js, Google's on-device runtime. Your image never leaves your browser. <a id="engine-link" href="#" target="_blank" rel="noopener">Open the engine full screen</a></div>
+  </div>
+</section>
 <section id="system" style="background:var(--bg2)">
   <div class="wrap c">
     <h2 class="h2 reveal">One system. Three jobs.</h2>
@@ -421,6 +433,20 @@ const VIDEOS = [ // first file that exists is used
   else { const io = new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting){ svg.classList.add('drawn'); io.disconnect(); } }), {threshold:.35}); io.observe(svg); }
   document.getElementById('budgets').innerHTML = BUDGETS.map(b=>`<tr><td>${b[0]}</td><td>${b[1]}</td><td class="n">${b[2].toFixed(3)}</td></tr>`).join('');
   document.getElementById('allcfg').innerHTML = DSE.map(r=>`<tr><td>${r[0]} @ ${r[2]}</td><td class="n">${r[3].toFixed(2)}</td><td class="n">${r[4]}</td><td class="n">${r[5]}</td><td class="n">${r[6]}</td><td class="n">${r[7].toFixed(3)}</td><td class="n">${r[8].toFixed(3)}</td><td>${r[9]?'yes':''}</td></tr>`).join('');
+})();
+
+
+/* ===== optimization engine embed (Hugging Face Space) ===== */
+const ENGINE_URL = "engine.html";   // in-browser engine, same site
+(function(){
+  if(!ENGINE_URL) return;
+  document.getElementById('engine').style.display='';
+  document.getElementById('nav-engine').style.display='';
+  document.getElementById('engine-link').href = ENGINE_URL;
+  const f = document.getElementById('engine-frame');
+  const io = new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting){ f.src = ENGINE_URL; io.disconnect(); } }), {rootMargin:'600px'});
+  io.observe(f);
+  addEventListener('message', e => { if (e.data && e.data.aichdEngineHeight) f.style.height = (e.data.aichdEngineHeight + 4) + 'px'; });
 })();
 
 /* ===== silicon bars ===== */

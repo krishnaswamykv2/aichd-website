@@ -250,6 +250,14 @@ footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px}
     <video id="live-video" controls muted playsinline preload="metadata"></video>
     <div class="cap tiny c" id="live-cap"></div>
   </div>
+  <div class="wrap c">
+    <div class="tiles" style="text-align:left">
+      <div class="tile reveal"><div class="k">TFLite INT8, live</div><div class="v gblue">14.8 ms</div><p>59.3 FPS model speed. The fastest of the three on the laptop webcam feed.</p></div>
+      <div class="tile reveal"><div class="k">PyTorch FP32, live</div><div class="v">20.5 ms</div><p>44.4 FPS. INT8 is 1.4× faster once the thread count is tuned for this chip.</p></div>
+      <div class="tile reveal"><div class="k">TFLite FP32, live</div><div class="v">32.5 ms</div><p>27.7 FPS. Same runtime as INT8, 2.2× slower with 32-bit numbers.</p></div>
+    </div>
+    <p class="small muted reveal" style="max-width:62ch;margin:28px auto 0">Median model-only latency from a live webcam session at 320×320 with 2 threads, the best setting found in the design-space exploration. Live timings include the load of running all three models and recording at once, so they are noisier than the controlled benchmark.<sup><a href="#n8">8</a></sup></p>
+  </div>
 </section>
 
 <section id="system" style="background:var(--bg2)">
@@ -298,6 +306,7 @@ footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px}
     <li id="n5">Registered signed MAC (acc ← acc + a×b), accumulator 2W+16 bits, synthesized with Yosys to a technology-independent CMOS gate set (abc -g cmos2). Counts are for comparison, not sign-off area in a real process.</li>
     <li id="n6">Analytic estimate from published 45 nm per-operation energy and area (M. Horowitz, ISSCC 2014; DRAM figure as tabulated by Han et al., 2015), YOLOv8n's measured 1.107 GMACs at 320×320 and 3.16 M weights each read once from DRAM. Activations, control and leakage are not included.</li>
     <li id="n7">UCI Gas Sensor Array Drift Dataset at Different Concentrations (Fonollosa et al., Data in Brief, 2015), 6 gases. SAFE, WARNING and CRITICAL are per-gas concentration tertiles fitted on the training split: project-level classes, not exposure limits. Random split; the 76.0% figure trains on batches 1 to 8 and tests on 9 and 10. In the live system demo the classifier receives replayed held-out vectors, since a single MQ-2 cannot produce the dataset's 128 features.</li>
+    <li id="n8">Live session summary: TFLite INT8 p50 14.75 ms / p95 30.58 ms; PyTorch FP32 20.54 / 42.51 ms; TFLite FP32 32.47 / 62.72 ms. Frame counts differ per model because the view auto-cycles between all three models and each model alone. Intel Core i7-14650HX laptop, Windows.</li>
     <li id="vidnote">Video: <span id="vidsrc">recorded from the project's comparison tool.</span></li>
   </ol>
 </div></div>

@@ -87,6 +87,30 @@ body.embedded h1,body.embedded .lead{display:none}
 .lstat .fps{color:var(--blue);font-weight:700}
 .livebadge{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--red);margin-right:6px;animation:pulse 1.2s infinite}
 @keyframes pulse{50%{opacity:.25}}
+.safety{margin-top:18px}
+.sgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.sgrid>*{min-width:0}
+@media (max-width:900px){.sgrid{grid-template-columns:1fr}}
+.scard{background:var(--card2);border-radius:16px;padding:14px 16px}
+.scard h4{margin:0 0 8px;font-size:13px;color:var(--muted);font-weight:500}
+.big{font-size:clamp(20px,2.4vw,26px);font-weight:700;letter-spacing:-.02em;color:var(--ink)}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px}
+.p-SAFE{background:rgba(48,209,88,.16);color:#30d158}.p-WARNING{background:rgba(255,214,10,.16);color:#ffd60a}.p-CRITICAL,.p-ALARM{background:rgba(255,69,58,.16);color:#ff453a}
+.mrow{display:grid;grid-template-columns:62px 1fr auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.mrow:last-child{border-bottom:0}
+.mrow .t{color:var(--muted);font-variant-numeric:tabular-nums;text-align:right}
+.banner{margin-top:14px;border-radius:18px;padding:22px 24px;display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;justify-content:space-between;transition:background .3s}
+.banner .st{font-size:clamp(34px,6vw,60px);font-weight:800;letter-spacing:-.04em;line-height:1}
+.banner .why{font-size:16px;font-weight:500;opacity:.9;max-width:52ch}
+.b-SAFE{background:rgba(48,209,88,.18);color:#30d158}.b-WARNING{background:rgba(255,214,10,.16);color:#ffd60a}.b-ALARM{background:rgba(255,69,58,.2);color:#ff453a}
+.b-ALARM .st{animation:pulse 1s infinite}
+.b-NONE{background:var(--card2);color:var(--muted)}
+.sbtns{display:flex;flex-wrap:wrap;gap:8px}
+.sbtns button{border:0;border-radius:10px;padding:9px 14px;font:600 14px var(--font);cursor:pointer;background:var(--card2);color:var(--ink)}
+.sbtns button.on{outline:2px solid var(--blue)}
+#smini{width:100%;border-radius:10px;background:#111;display:block;margin-top:8px}
+@media (prefers-reduced-motion:reduce){.b-ALARM .st{animation:none}}
+
 @media (prefers-reduced-motion:reduce){.livebadge{animation:none}}
 body.embedded .wrap{padding-top:16px}
 details summary{cursor:pointer;color:var(--blue);font-size:14px}
@@ -146,6 +170,38 @@ details summary{cursor:pointer;color:var(--blue);font-size:14px}
     </div>
     <div class="status" id="lstatus">Uses the input size selected above. Side by side runs both models on every frame; pick one model to see its full speed.</div>
     <video id="lvid" playsinline muted hidden></video>
+  </section>
+
+  <section class="panel safety" id="safety" aria-label="Safety system">
+    <div class="lhd">
+      <div><div class="k">Safety system</div><b>Sense the air, watch the room, decide.</b></div>
+      <div class="sbtns" id="sbtns">
+        <button type="button" data-c="0">SAFE reading</button>
+        <button type="button" data-c="1">WARNING reading</button>
+        <button type="button" data-c="2">CRITICAL reading</button>
+        <button type="button" data-c="r">Random</button>
+        <button type="button" id="scycle">Auto-cycle: off</button>
+      </div>
+    </div>
+    <div class="sgrid">
+      <div class="scard"><h4>1 · Gas sensor array (16 sensors)</h4>
+        <div id="sgas" class="small">Pick a reading. These are real held-out measurements from the UCI gas sensor array dataset, never used in training.</div>
+        <svg id="sbars" viewBox="0 0 320 110" style="width:100%;height:auto;margin-top:8px" role="img" aria-label="Sensor array response"></svg>
+        <div class="small" style="font-size:12px">Steady-state response of each sensor (standardised)</div>
+      </div>
+      <div class="scard"><h4>2 · Gas classifier, FP32 vs INT8</h4>
+        <div class="mrow"><span><i class="tag" style="background:#8e8e93"></i>FP32</span><span id="sp32">–</span><span class="t" id="st32"></span></div>
+        <div class="mrow"><span><i class="tag" style="background:#2997ff"></i>INT8</span><span id="sp8">–</span><span class="t" id="st8"></span></div>
+        <div class="small" id="sgasnote" style="margin-top:8px"></div>
+      </div>
+      <div class="scard"><h4>3 · Camera, person detection (INT8 YOLOv8n)</h4>
+        <div id="sperson" class="small">Camera off, so no person is assumed.</div>
+        <canvas id="smini" width="320" height="180"></canvas>
+        <button class="btn ghost sm" id="scam" type="button" style="margin-top:10px">Start camera</button>
+      </div>
+    </div>
+    <div class="banner b-NONE" id="sbanner"><div class="st" id="sstate">–</div><div class="why" id="swhy">Pick a gas reading to start the system.</div></div>
+    <div class="small" style="margin-top:10px;font-size:12px">Fusion rule from the project: gas CRITICAL → ALARM; gas WARNING with a person in view → ALARM; gas WARNING → WARNING; otherwise SAFE. The decision uses the INT8 models. Gas readings are replayed from the dataset because a single low-cost sensor cannot produce its 128 features. Demonstration logic, not a certified safety system.</div>
   </section>
 
   <div class="foot" id="foot"></div>
@@ -419,7 +475,8 @@ async function startLive(){
 function stopLive(){
   live.on = false; if (live.stream) live.stream.getTracks().forEach(t => t.stop()); live.stream = null;
   $('lstart').textContent = 'Start live camera'; $('lstart').classList.replace('ghost', 'primary');
-  $('lk').textContent = 'Live camera'; updateButtons();
+  $('lk').textContent = 'Live camera'; updateButtons(); live.persons = 0;
+  if (typeof updateSafety === 'function') setTimeout(updateSafety, 0);
   const fp = live.hist.fp32.length ? `FP32 median ${median(live.hist.fp32).toFixed(1)} ms` : '', i8 = live.hist.int8.length ? `INT8 median ${median(live.hist.int8).toFixed(1)} ms` : '';
   lstatus(fp || i8 ? `Stopped. Last session: ${[fp, i8].filter(Boolean).join(', ')}.` : 'Stopped.');
 }
@@ -447,7 +504,14 @@ async function liveLoop(){
       $('lo' + sfx).textContent = `${r.ms.toFixed(1)} ms · ${boxes.length} object${boxes.length === 1 ? '' : 's'}`;
       $('lm' + sfx).textContent = median(h).toFixed(1) + ' ms';
       $('lf' + sfx).textContent = (1000 / mean(h)).toFixed(1) + ' FPS';
+      if (p === 'int8' || precs.length === 1) {
+        live.persons = boxes.filter(b => b[0] === 0).length;
+        const mini = $('smini'), src = $('lc' + sfx);
+        mini.width = 320; mini.height = Math.round(320 * src.height / src.width);
+        mini.getContext('2d').drawImage(src, 0, 0, mini.width, mini.height);
+      }
     }
+    if (typeof updateSafety === 'function') updateSafety();
     live.frames++;
     const secs = (performance.now() - live.t0) / 1000;
     if (live.frames % 5 === 0) {
@@ -461,6 +525,80 @@ async function liveLoop(){
   } catch (e) { console.error(e); lstatus('<span class="err">Live mode stopped: ' + e.message + '</span>'); stopLive(); return; }
   requestAnimationFrame(liveLoop);
 }
+
+
+/* ---------------- safety system: gas classifier + camera + fusion ---------------- */
+const SAFE_CLS = ['SAFE', 'WARNING', 'CRITICAL'];
+const safety = {data: null, gas32: null, gas8: null, sample: null, pred8: null, cycle: null, step: 0};
+async function loadSafety(){
+  if (safety.data) return true;
+  try {
+    const r = await fetch('data/gas_samples.json'); if (!r.ok) throw new Error('gas_samples.json not found');
+    safety.data = await r.json();
+    const [b32, b8] = await Promise.all(['gas_mlp_fp32', 'gas_mlp_int8'].map(n => fetch(`models/${n}.tflite`).then(x => { if (!x.ok) throw new Error(n + ' not found'); return x.arrayBuffer(); })));
+    safety.gas32 = {model: await loadAndCompile(new Uint8Array(b32), {accelerator: 'wasm'}), kb: b32.byteLength / 1024};
+    safety.gas8 = {model: await loadAndCompile(new Uint8Array(b8), {accelerator: 'wasm'}), kb: b8.byteLength / 1024};
+    return true;
+  } catch (e) { console.error(e); $('sgas').innerHTML = '<span class="err">Safety demo files are missing: ' + e.message + '</span>'; return false; }
+}
+async function gasInfer(model, x){
+  const t = new Tensor(x, [1, 128]); const res = await model.run(t); t.delete();
+  let o = res[0], arr; try { arr = o.toTypedArray().slice(); } catch (e) { const m = await o.moveTo('wasm'); arr = m.toTypedArray().slice(); m.delete(); }
+  o.delete(); return arr;
+}
+async function gasTimed(model, x){
+  const p = await gasInfer(model, x);                  // warm-up + result
+  const n = 100, t0 = performance.now(); for (let i = 0; i < n; i++) await gasInfer(model, x);
+  return {p, us: (performance.now() - t0) / n * 1000};
+}
+function softmaxMax(p){ let k = 0; for (let i = 1; i < p.length; i++) if (p[i] > p[k]) k = i; return {k, conf: p[k]}; }
+function drawBars(x){
+  const W = 320, H = 110, n = 16, bw = W / n - 4, vals = Array.from({length: n}, (_, i) => x[i * 8]);
+  const m = Math.max(1, ...vals.map(Math.abs)), mid = H / 2;
+  $('sbars').innerHTML = `<line x1="0" x2="${W}" y1="${mid}" y2="${mid}" stroke="var(--line)"/>` + vals.map((v, i) => {
+    const h = Math.abs(v) / m * (H / 2 - 6), y = v >= 0 ? mid - h : mid;
+    return `<rect x="${i * (W / n) + 2}" y="${y}" width="${bw}" height="${Math.max(1, h)}" rx="2" fill="#2997ff" opacity="${0.45 + 0.55 * Math.abs(v) / m}"/>`;
+  }).join('');
+}
+async function pickSample(cls){
+  if (!runtimeReady) return;
+  if (!(await loadSafety())) return;
+  const S = safety.data.samples, pool = cls === 'r' ? S : S.filter(z => z.label === +cls);
+  const z = pool[Math.floor(Math.random() * pool.length)]; safety.sample = z;
+  [...$('sbtns').children].forEach(b => b.classList.toggle('on', b.dataset.c === String(cls)));
+  const x = new Float32Array(z.x);
+  $('sgas').innerHTML = `<div class="big">${z.gas}</div><div>${z.ppmv} ppmv · measured hazard level <span class="pill p-${SAFE_CLS[z.label]}">${SAFE_CLS[z.label]}</span></div>`;
+  drawBars(x);
+  const r32 = await gasTimed(safety.gas32.model, x), r8 = await gasTimed(safety.gas8.model, x);
+  const a = softmaxMax(r32.p), b = softmaxMax(r8.p); safety.pred8 = SAFE_CLS[b.k];
+  $('sp32').innerHTML = `<span class="pill p-${SAFE_CLS[a.k]}">${SAFE_CLS[a.k]}</span> ${(a.conf * 100).toFixed(0)}%`;
+  $('sp8').innerHTML = `<span class="pill p-${SAFE_CLS[b.k]}">${SAFE_CLS[b.k]}</span> ${(b.conf * 100).toFixed(0)}%`;
+  $('st32').textContent = `${r32.us.toFixed(0)} µs · ${safety.gas32.kb.toFixed(0)} KB`;
+  $('st8').textContent = `${r8.us.toFixed(0)} µs · ${safety.gas8.kb.toFixed(0)} KB`;
+  const acc = safety.data.test_accuracy;
+  $('sgasnote').innerHTML = `${a.k === b.k ? 'Both models agree.' : 'The two models disagree on this reading.'} ${b.k === z.label ? 'INT8 matches the measured level.' : 'INT8 differs from the measured level.'} On all ${acc.n_test.toLocaleString()} held-out readings: FP32 ${(acc.fp32 * 100).toFixed(1)}%, INT8 ${(acc.int8 * 100).toFixed(1)}% accuracy.`;
+  updateSafety();
+}
+function personCount(){ return live.on ? (live.persons || 0) : 0; }
+function updateSafety(){
+  const g = safety.pred8, ppl = personCount();
+  $('sperson').innerHTML = live.on ? `<b>${ppl}</b> person${ppl === 1 ? '' : 's'} in view` : 'Camera off, so no person is assumed.';
+  $('scam').textContent = live.on ? 'Stop camera' : 'Start camera';
+  if (!g) return;
+  let st, why;
+  if (g === 'CRITICAL') { st = 'ALARM'; why = 'Gas level CRITICAL. The alarm triggers on its own.'; }
+  else if (g === 'WARNING' && ppl > 0) { st = 'ALARM'; why = `Gas level WARNING and ${ppl} person${ppl === 1 ? '' : 's'} in view, so the warning is escalated.`; }
+  else if (g === 'WARNING') { st = 'WARNING'; why = 'Gas level WARNING, nobody in view.' + (live.on ? '' : ' Turn on the camera and step in front of it to see the escalation.'); }
+  else { st = 'SAFE'; why = 'Gas level SAFE' + (ppl > 0 ? `, ${ppl} person${ppl === 1 ? '' : 's'} in view.` : '.'); }
+  $('sbanner').className = 'banner b-' + st; $('sstate').textContent = st; $('swhy').textContent = why;
+}
+$('sbtns').onclick = e => { const b = e.target.closest('button'); if (!b || b.id === 'scycle') return; pickSample(b.dataset.c); };
+$('scycle').onclick = () => {
+  if (safety.cycle) { clearInterval(safety.cycle); safety.cycle = null; $('scycle').textContent = 'Auto-cycle: off'; return; }
+  const next = () => { pickSample(String(safety.step % 3)); safety.step++; };
+  next(); safety.cycle = setInterval(next, 6000); $('scycle').textContent = 'Auto-cycle: on';
+};
+$('scam').onclick = () => { if (live.on) stopLive(); else { if (live.view !== 'int8') setLiveView('int8'); startLive(); } };
 
 /* ---------------- tell an embedding page our height ---------------- */
 if (window.parent !== window) {

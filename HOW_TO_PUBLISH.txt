@@ -1,0 +1,9 @@
+AICHD project website - how to put it online
+
+1. Copy results\video_compare.mp4 from your aichd-edge folder into THIS folder
+   (next to index.html). Keep the name video_compare.mp4.
+2. Go to https://app.netlify.com/drop , sign in (free), and drag THIS whole folder onto the page.
+3. Netlify gives you a public link. In Site settings you can rename it,
+   for example aichd-cit.netlify.app
+
+To update later: edit index.html and drag the folder onto the same site's Deploys page again.

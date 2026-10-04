@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hardware-Aware Optimization of Deep Learning Models for Real-Time Edge AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#ffffff; --ink:#1a2233; --muted:#5b6577; --line:#dde2ea; --soft:#f4f6f9;
+  --accent:#1f5fae; --accent-soft:#e6eef8; --fp:#8a93a3; --fp-soft:#eef0f3;
+  --sign:#b7791f; --exp:#4a6a95; --mant:#c9d3e0; --ok:#2f7d4f; --wait:#8a6d1f; --wait-soft:#f8f1df;
+  --serif:"Source Serif 4", Georgia, "Times New Roman", serif;
+  --sans:"Public Sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121722; --ink:#e7ebf2; --muted:#a3adbd; --line:#2b3345; --soft:#1a2130;
+    --accent:#6fa3e6; --accent-soft:#1c2c45; --fp:#8e98aa; --fp-soft:#222a39;
+    --sign:#d9a24a; --exp:#7f9fcc; --mant:#3a4558; --ok:#6cc093; --wait:#d8b45a; --wait-soft:#2e2818;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121722; --ink:#e7ebf2; --muted:#a3adbd; --line:#2b3345; --soft:#1a2130;
+  --accent:#6fa3e6; --accent-soft:#1c2c45; --fp:#8e98aa; --fp-soft:#222a39;
+  --sign:#d9a24a; --exp:#7f9fcc; --mant:#3a4558; --ok:#6cc093; --wait:#d8b45a; --wait-soft:#2e2818;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 17px/1.65 var(--sans);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1040px;margin:0 auto;padding:0 24px}
+.prose{max-width:68ch}
+h1,h2,h3{font-family:var(--serif);font-weight:600;line-height:1.2;margin:0}
+h1{font-size:clamp(30px,4.6vw,48px);letter-spacing:-.01em;max-width:20ch}
+h2{font-size:clamp(24px,3vw,30px);margin-bottom:14px}
+h3{font-size:19px;margin-bottom:8px}
+p{margin:0 0 14px}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+section{padding:64px 0;border-top:1px solid var(--line)}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+
+/* hero */
+header.hero{padding:56px 0 48px}
+.course{font-size:15px;color:var(--muted);margin-bottom:18px}
+.lede{font-size:19px;color:var(--muted);max-width:60ch;margin:18px 0 28px}
+.people{display:flex;flex-wrap:wrap;gap:8px 36px;font-size:15px;margin-bottom:40px}
+.people b{display:block;font-weight:600;color:var(--ink)}
+.people span{color:var(--muted)}
+
+/* bit-width figure: the one memorable element */
+.bits{margin:0;border:1px solid var(--line);border-radius:10px;padding:22px 22px 18px;background:var(--soft)}
+.bitrow{display:grid;grid-template-columns:150px 1fr;align-items:center;gap:16px;margin-bottom:14px}
+.bitrow .lab{font-size:14px;color:var(--muted);line-height:1.35}
+.bitrow .lab b{display:block;color:var(--ink);font-size:16px;font-weight:600}
+.cells{display:grid;grid-template-columns:repeat(32,1fr);gap:3px}
+.cell{height:30px;border-radius:2px}
+.s{background:var(--sign)} .e{background:var(--exp)} .m{background:var(--mant)} .q{background:var(--accent)}
+.cells.int8 .cell{opacity:1}
+@media (prefers-reduced-motion:no-preference){
+  .cells.int8 .cell{animation:land .5s cubic-bezier(.2,.7,.2,1) both}
+  @keyframes land{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--muted);margin-top:4px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.bitnote{font-size:15px;margin-top:12px}
+
+/* layout helpers */
+.two{display:grid;grid-template-columns:1fr 1fr;gap:32px}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+@media (max-width:820px){.two,.three{grid-template-columns:1fr}.bitrow{grid-template-columns:1fr;gap:6px}}
+
+/* pipeline (a real sequence, so numbered) */
+.stages{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.stage{padding:20px 20px 18px;border-right:1px solid var(--line)}
+.stage:last-child{border-right:0;background:var(--accent-soft)}
+.stage .n{font-family:var(--serif);font-size:15px;color:var(--muted)}
+.stage h3{margin-top:2px}
+.stage ul{margin:8px 0 0;padding-left:18px;font-size:15px;color:var(--muted)}
+@media (max-width:820px){.stages{grid-template-columns:1fr}.stage{border-right:0;border-bottom:1px solid var(--line)}}
+
+/* system blocks */
+.block{border:1px solid var(--line);border-radius:10px;padding:18px 20px}
+.block h3{font-size:17px}
+.block p{font-size:15px;color:var(--muted);margin:0}
+.block .where{font-size:13px;color:var(--accent);font-weight:600;margin-bottom:6px}
+
+/* tables */
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:15px;min-width:560px}
+th,td{padding:11px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;background:var(--soft);font-size:14px}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.pill{display:inline-block;font-size:13px;padding:2px 9px;border-radius:999px;white-space:nowrap}
+.pill.wait{background:var(--wait-soft);color:var(--wait)}
+.pill.done{background:var(--accent-soft);color:var(--accent)}
+
+/* results */
+.pending{border:1px dashed var(--line);border-radius:10px;padding:22px;color:var(--muted);font-size:15px}
+.figs{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:26px}
+.fig{border:1px solid var(--line);border-radius:10px;padding:18px}
+.fig .big{font-family:var(--serif);font-size:38px;font-weight:600;line-height:1.1}
+.fig .what{font-size:14px;color:var(--muted);margin-top:4px}
+@media (max-width:820px){.figs{grid-template-columns:1fr}}
+.bars{display:grid;gap:10px;margin:8px 0 6px}
+.bar{display:grid;grid-template-columns:120px 1fr 90px;align-items:center;gap:12px;font-size:14px}
+.bar .track{height:14px;background:var(--soft);border-radius:3px;overflow:hidden}
+.bar .fill{height:100%;border-radius:3px;background:var(--fp)}
+.bar.opt .fill{background:var(--accent)}
+.bar .v{text-align:right;font-variant-numeric:tabular-nums}
+video{width:100%;border-radius:10px;border:1px solid var(--line);background:#000;display:block}
+.cap{font-size:14px;color:var(--muted);margin-top:8px}
+
+footer{padding:40px 0 56px;border-top:1px solid var(--line);font-size:14px;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<header class="hero wrap">
+  <div class="course">Project Based Learning, AI for Chip Design (CS5311), Chennai Institute of Technology</div>
+  <h1>Hardware-aware optimization of deep learning models for real-time edge AI</h1>
+  <p class="lede">We take two models that must run together on a small ARM board, a YOLOv8n person detector and a gas-hazard classifier, shrink them from 32-bit floats to 8-bit integers, and measure what that actually changes on the device: latency, frame rate, memory, CPU load, heat and accuracy.</p>
+  <div class="people">
+    <div><b>Krishnaswamy K V</b><span>210425160029</span></div>
+    <div><b>Manoranjan V S</b><span>210425160033</span></div>
+    <div><b>Dr. Saumiya S</b><span>Supervisor, Dept. of Electronics Engg. (VLSI D&amp;T)</span></div>
+  </div>
+
+  <figure class="bits" aria-label="Each weight goes from 32 bits in FP32 to 8 bits in INT8">
+    <div class="bitrow">
+      <div class="lab"><b>FP32</b>32 bits per value</div>
+      <div class="cells" id="fp32"></div>
+    </div>
+    <div class="bitrow">
+      <div class="lab"><b>INT8</b>8 bits per value</div>
+      <div class="cells int8" id="int8"></div>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--sign)"></i>sign</span>
+      <span><i style="background:var(--exp)"></i>exponent</span>
+      <span><i style="background:var(--mant)"></i>mantissa</span>
+      <span><i style="background:var(--accent)"></i>quantized integer (scale and zero-point stored per tensor)</span>
+    </div>
+    <p class="bitnote" id="bitnote">A quarter of the bits per weight. Whether that becomes a real speed-up depends on the processor, which is what this project measures.</p>
+  </figure>
+</header>
+
+<section>
+  <div class="wrap two">
+    <div class="prose">
+      <h2>The problem</h2>
+      <p>Edge devices have a fixed amount of compute, memory and thermal headroom. A model that is accurate on a workstation can be too slow, too large or too hot once it shares a 4-core ARM CPU with a second model.</p>
+      <p>Optimization is often reported as a single number from a desktop. We instead deploy on the target hardware and compare every model form under the same conditions.</p>
+    </div>
+    <div class="prose">
+      <h2>What we measure</h2>
+      <p>Latency (median and 95th percentile), frames per second, model size, RAM, CPU utilization, temperature and throttling, and the accuracy retained after quantization.</p>
+      <p>Each model is measured alone and with both models running at the same time, because that is how the system is actually used.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>System</h2>
+    <p class="prose muted">Training and conversion run offline. Inference, fusion and benchmarking run on the edge board. A microcontroller handles sensors and actuation.</p>
+    <div class="three" style="margin-top:22px">
+      <div class="block"><div class="where">Offline (Colab)</div><h3>Train and optimize</h3><p>Gas MLP trained on the UCI Gas Sensor Array Drift dataset. Both models converted to TFLite FP32 and full-integer INT8 with a representative calibration set.</p></div>
+      <div class="block"><div class="where">Raspberry Pi 4B</div><h3>Infer, fuse, measure</h3><p>Camera thread keeps only the newest frame. YOLOv8n INT8 detects people, the gas MLP classifies hazard level, and a fusion rule sets the safety state.</p></div>
+      <div class="block"><div class="where">Arduino Uno</div><h3>Sense and act</h3><p>Reads MQ-2 and DHT-11, streams readings over serial, and drives LEDs, buzzer and relay from the SAFE, WARNING or ALARM command.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Optimization pipeline</h2>
+    <p class="prose muted">Both models go through the same three stages, and each stage is evaluated before moving on.</p>
+    <div class="stages" style="margin-top:22px">
+      <div class="stage"><div class="n">Stage 1</div><h3>FP32 baseline</h3><ul><li>YOLOv8n PyTorch, 320×320 input</li><li>Gas MLP 128 → 64 → 32 → 3 in Keras</li><li>Reference for accuracy and detections</li></ul></div>
+      <div class="stage"><div class="n">Stage 2</div><h3>TFLite FP32</h3><ul><li>Same precision, edge runtime</li><li>Isolates the effect of the runtime from the effect of quantization</li></ul></div>
+      <div class="stage"><div class="n">Stage 3</div><h3>TFLite INT8</h3><ul><li>Post-training full-integer quantization</li><li>Calibrated on training-split samples</li><li>Re-evaluated on held-out data</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<section id="results">
+  <div class="wrap">
+    <h2>Results: person detection on video</h2>
+    <p class="prose muted" id="vid-intro">The same video frames are passed through every model form. Each model runs its own pass with warm-up excluded, so the timings do not interfere.</p>
+    <div id="vid-figs"></div>
+    <div id="vid-player"></div>
+    <div id="vid-table" style="margin-top:22px"></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Results: gas-hazard classifier</h2>
+    <p class="prose muted">The UCI dataset labels six gases. We derive SAFE, WARNING and CRITICAL from per-gas concentration tertiles fitted on the training split only, and report both a random split and a drift-aware split that tests on later sensor batches.</p>
+    <div id="gas-out" style="margin-top:22px"></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Experimental matrix on the edge device</h2>
+    <p class="prose muted">Every condition runs in a fresh process with fixed warm-up and a fixed measurement window, with the board cooled to the same temperature before each run.</p>
+    <div class="tbl" style="margin-top:22px"><table>
+      <thead><tr><th>Test</th><th>Models</th><th>Execution</th><th>Purpose</th><th>Status</th></tr></thead>
+      <tbody id="matrix"></tbody>
+    </table></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap two">
+    <div class="prose">
+      <h2>Decision fusion</h2>
+      <p>A detected person raises the priority of a gas hazard. A critical gas class triggers the alarm on its own. If gas data goes stale, the system falls back to WARNING.</p>
+      <p class="small muted">Application-level demonstration logic, not a certified safety function.</p>
+    </div>
+    <div class="tbl"><table style="min-width:0">
+      <thead><tr><th>Gas class</th><th>Person</th><th>State</th></tr></thead>
+      <tbody>
+        <tr><td>SAFE</td><td>Any</td><td>SAFE</td></tr>
+        <tr><td>WARNING</td><td>No</td><td>WARNING</td></tr>
+        <tr><td>WARNING</td><td>Yes</td><td>ALARM</td></tr>
+        <tr><td>CRITICAL</td><td>Any</td><td>ALARM</td></tr>
+        <tr><td>Stale data</td><td>Any</td><td>WARNING</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap prose">
+    <h2>How to read these results</h2>
+    <p><b>Latency is model-only time.</b> Image resizing, post-processing, camera capture and serial transfer are logged separately and never added to the model figure.</p>
+    <p><b>The device matters.</b> INT8 gives a large speed-up on ARM cores. On x86 cloud CPUs the gain can be small, so every result on this page names the processor it was measured on.</p>
+    <p><b>Detection quality</b> is reported as agreement with the FP32 model on the same frames, because no labelled evaluation set is used for the person class.</p>
+    <p><b>The gas model's demo input</b> is replayed held-out UCI vectors, because a single MQ-2 cannot produce the dataset's 128 features. Live MQ-2 and DHT-11 readings are logged as the start of a calibration dataset.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">Department of Electronics Engineering (VLSI Design and Technology), Chennai Institute of Technology, Kundrathur, Chennai 600069. Affiliated to Anna University.</div>
+</footer>
+
+<script>
+/* ===== Results data: filled from results/website_data.json (Colab notebook step 9) ===== */
+const DATA = {
+  video: {
+    device: "Laptop", cpu: "Intel Core i7-14650HX, x86-64", imgsz: 320, threads: 4, frames: 279, warmup: 10,
+    reference: "PyTorch FP32",
+    models: {
+      "PyTorch FP32": {size_mb: 6.55, latency_p50_ms: 14.17, latency_p95_ms: 18.22, fps_model: 69.31, fps_end_to_end: 64.38},
+      "TFLite FP32":  {size_mb: 12.72, latency_p50_ms: 26.75, latency_p95_ms: 28.20, fps_model: 37.27, fps_end_to_end: 34.68, presence_agreement_pct: 100.0, count_agreement_pct: 84.6},
+      "TFLite INT8":  {size_mb: 3.29, latency_p50_ms: 20.37, latency_p95_ms: 21.76, fps_model: 49.00, fps_end_to_end: 44.61, presence_agreement_pct: 100.0, count_agreement_pct: 76.3}
+    }
+  },
+  gas_random: {},
+  gas_batch: {test_accuracy: 0.7604, test_macro_f1: 0.7149},
+  gas_conversion: {
+    keras_fp32: {accuracy: 0.9717, macro_f1: 0.9710, size_bytes: 153036},
+    "gas_mlp_fp32.tflite": {accuracy: 0.9717, macro_f1: 0.9710, size_bytes: 43916},
+    "gas_mlp_int8.tflite": {accuracy: 0.9722, macro_f1: 0.9715, size_bytes: 15600}
+  },
+  gas_labels: null,
+  videoSrc: "video_compare.mp4",   // put video_compare.mp4 in the same folder as this file
+  matrixDone: []
+};
+
+/* ---------- bit-width figure ---------- */
+(function(){
+  const fp = document.getElementById('fp32'), q = document.getElementById('int8');
+  for(let i=0;i<32;i++){const c=document.createElement('div');c.className='cell '+(i===0?'s':i<9?'e':'m');fp.appendChild(c);}
+  for(let i=0;i<8;i++){const c=document.createElement('div');c.className='cell q';c.style.animationDelay=(0.35+i*0.06)+'s';q.appendChild(c);}
+  for(let i=0;i<24;i++){const c=document.createElement('div');c.className='cell';q.appendChild(c);}
+})();
+
+const f = (v,d=1)=> (v===null||v===undefined||Number.isNaN(v)) ? '–' : Number(v).toFixed(d);
+const pend = msg => `<div class="pending">${msg}</div>`;
+const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- video results ---------- */
+(function(){
+  const v = DATA.video, figs = document.getElementById('vid-figs'), tbl = document.getElementById('vid-table'),
+        pl = document.getElementById('vid-player');
+  if(DATA.videoSrc){
+    pl.innerHTML = `<video controls preload="metadata" playsinline src="${esc(DATA.videoSrc)}" onerror="this.parentElement.style.display='none'"></video>
+      <div class="cap">Same frames, each panel showing the latency that model measured on that frame.</div>`;
+  }
+  if(!v || !v.models){ figs.innerHTML = pend('Awaiting measurement. The comparison video and timings appear here after the optimization run.'); return; }
+  const names = Object.keys(v.models), ref = v.reference, m = v.models;
+  const int8 = names.find(n=>/INT8/.test(n)), r = m[ref], o = int8 ? m[int8] : null;
+  document.getElementById('vid-intro').textContent =
+    `${v.frames} frames at ${v.imgsz}×${v.imgsz} input, ${v.threads} threads, measured on ${v.device}${v.cpu ? ' ('+v.cpu+')' : ''}. Each model runs its own pass with ${v.warmup} warm-up frames excluded.`;
+  const fp = m['TFLite FP32'];
+  if(o && fp){
+    const sp = fp.latency_p50_ms / o.latency_p50_ms, sz = fp.size_mb / o.size_mb;
+    figs.innerHTML = `<div class="figs">
+      <div class="fig"><div class="big">${f(sp,2)}×</div><div class="what">lower median latency from INT8 quantization alone (TFLite FP32 ${f(fp.latency_p50_ms,1)} ms to INT8 ${f(o.latency_p50_ms,1)} ms, same runtime)</div></div>
+      <div class="fig"><div class="big">${f(sz,1)}×</div><div class="what">smaller model file (${f(fp.size_mb,2)} MB to ${f(o.size_mb,2)} MB)</div></div>
+      <div class="fig"><div class="big">${f(o.presence_agreement_pct,0)}%</div><div class="what">of frames where INT8 and the FP32 reference agree on whether a person is present</div></div>
+    </div>`;
+  }
+  const fastest = names.reduce((a,b)=> m[a].latency_p50_ms <= m[b].latency_p50_ms ? a : b);
+  if(fastest !== int8 && /x86/.test(v.cpu||'')){
+    figs.innerHTML += `<p class="prose">On this x86 laptop CPU, ${esc(fastest)} had the lowest latency (${f(m[fastest].latency_p50_ms,1)} ms). PyTorch uses kernels tuned for desktop Intel processors, while TFLite targets ARM edge devices. The comparison that isolates the effect of quantization is therefore TFLite FP32 against TFLite INT8, which run in the same runtime. The same measurement on the Raspberry Pi 4B's ARM cores is the next step.</p>`;
+  }
+  const maxLat = Math.max(...names.map(n=>m[n].latency_p50_ms));
+  const bars = names.map(n=>`<div class="bar ${/INT8/.test(n)?'opt':''}"><span>${esc(n)}</span>
+      <div class="track"><div class="fill" style="width:${100*m[n].latency_p50_ms/maxLat}%"></div></div>
+      <span class="v">${f(m[n].latency_p50_ms)} ms</span></div>`).join('');
+  tbl.innerHTML = `<h3>Median inference latency</h3><div class="bars">${bars}</div>
+   <div class="tbl" style="margin-top:22px"><table><thead><tr><th>Model</th><th class="num">Size (MB)</th><th class="num">p50 (ms)</th><th class="num">p95 (ms)</th><th class="num">Model FPS</th><th class="num">End-to-end FPS</th><th class="num">Person presence agreement (%)</th><th class="num">Person count agreement (%)</th></tr></thead><tbody>
+   ${names.map(n=>{const x=m[n];return `<tr><td>${esc(n)}</td><td class="num">${f(x.size_mb,2)}</td><td class="num">${f(x.latency_p50_ms)}</td><td class="num">${f(x.latency_p95_ms)}</td><td class="num">${f(x.fps_model)}</td><td class="num">${f(x.fps_end_to_end)}</td><td class="num">${n===ref?'reference':f(x.presence_agreement_pct)}</td><td class="num">${n===ref?'reference':f(x.count_agreement_pct)}</td></tr>`}).join('')}
+   </tbody></table></div>
+   <p class="cap">Ultralytics stores the PyTorch checkpoint in half precision, so model size is compared against TFLite FP32, which holds true 32-bit weights. Agreement is measured against the PyTorch FP32 detections on the same frames.</p>`;
+})();
+
+(function(){const vd=document.querySelector('#vid-player video'); if(vd){vd.addEventListener('error',()=>{document.getElementById('vid-player').style.display='none';});}})();
+
+/* ---------- gas results ---------- */
+(function(){
+  const out = document.getElementById('gas-out'), c = DATA.gas_conversion;
+  if(!c){ out.innerHTML = pend('Awaiting measurement. Accuracy, F1 and model size for FP32, TFLite FP32 and INT8 appear here after training and conversion.'); return; }
+  const rows = [['Keras FP32','keras_fp32'],['TFLite FP32','gas_mlp_fp32.tflite'],['TFLite INT8','gas_mlp_int8.tflite']]
+    .filter(([,k])=>c[k]).map(([n,k])=>`<tr><td>${n}</td><td class="num">${f(100*c[k].accuracy,2)}</td><td class="num">${f(c[k].macro_f1,4)}</td><td class="num">${f(c[k].size_bytes/1024,1)}</td></tr>`).join('');
+  let html = `<div class="tbl"><table><thead><tr><th>Model form</th><th class="num">Accuracy (%)</th><th class="num">Macro-F1</th><th class="num">Size (KB)</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="cap">Random stratified split${DATA.gas_random && DATA.gas_random.n_test ? ', '+DATA.gas_random.n_test+' test samples' : ''}. INT8 shows no measurable loss: the 0.05-point difference is within one or two test samples.</p>`;
+  if(DATA.gas_batch){
+    html += `<p style="margin-top:18px">On the drift-aware split (train on batches 1 to 8, test on 9 and 10), FP32 accuracy is <b>${f(100*DATA.gas_batch.test_accuracy,2)}%</b> with macro-F1 ${f(DATA.gas_batch.test_macro_f1,4)}. The gap to the random split shows how much sensor drift affects a model trained on earlier data.</p>`;
+  }
+  if(DATA.gas_labels && DATA.gas_labels.thresholds_ppmv){
+    const t = DATA.gas_labels.thresholds_ppmv;
+    html += `<h3 style="margin-top:26px">Hazard thresholds derived from the training split (ppmv)</h3><div class="tbl"><table><thead><tr><th>Gas</th><th class="num">SAFE up to</th><th class="num">WARNING up to</th><th class="num">CRITICAL above</th></tr></thead><tbody>
+      ${Object.entries(t).map(([g,v])=>`<tr><td>${esc(g)}</td><td class="num">${f(v.q33,1)}</td><td class="num">${f(v.q66,1)}</td><td class="num">${f(v.q66,1)}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+  out.innerHTML = html;
+})();
+
+/* ---------- experimental matrix ---------- */
+(function(){
+  const T = [
+    ['T1','YOLO PyTorch FP32 + Gas Keras FP32','Sequential','Framework baseline'],
+    ['T2','YOLO TFLite FP32 + Gas TFLite FP32','Sequential','Effect of the edge runtime alone'],
+    ['T3','YOLO TFLite INT8 + Gas TFLite INT8','Sequential','Effect of quantization'],
+    ['T4','YOLO TFLite INT8 + Gas TFLite INT8','Concurrent','Contention between the two models'],
+    ['T5','Same as T4, 1 to 4 threads','Concurrent','Hardware-aware thread tuning']];
+  document.getElementById('matrix').innerHTML = T.map(r=>{
+    const done = DATA.matrixDone.includes(r[0]);
+    return `<tr><td><b>${r[0]}</b></td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td><td><span class="pill ${done?'done':'wait'}">${done?'Measured':'Scheduled on Pi'}</span></td></tr>`;
+  }).join('');
+})();
+</script>
+</body>
+</html>
